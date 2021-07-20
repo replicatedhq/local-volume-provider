@@ -1,0 +1,20 @@
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: default
+  namespace: velero
+spec:
+  backupSyncPeriod: 2m0s
+  provider: replicated.com/nfs
+  objectStorage:
+    # This corresponds to a unique volume name
+    bucket: nfs-snapshots
+    # A prefix inside the volume that contains the backups 
+    # useful for migrating from a filesystem created by Minio
+    prefix: /velero
+  config:
+    # Path and server on share
+    path: /
+    server: 10.0.0.1
+    # Must be provided if you're using Restic; [default mount] + [bucket] + [prefix] + "restic"
+    resticRepoPrefix: /var/velero-local-volume-provider/nfs-snapshots/velero/restic
