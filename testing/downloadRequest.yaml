@@ -1,0 +1,10 @@
+apiVersion: velero.io/v1
+kind: DownloadRequest
+metadata:
+  name: "my-download" 
+  generateName: "dr-"
+  namespace: velero
+spec:
+  target:
+    kind: BackupLog
+    name: instance-dxh8z
