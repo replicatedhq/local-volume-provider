@@ -1,0 +1,30 @@
+name: deploy
+on:
+  push:
+    tags:
+    - "v*.*.*"
+
+jobs:
+  release-containers:
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Get the version
+      if: startsWith(github.ref, 'refs/tags/')
+      id: get_tag
+      shell: bash
+      run: echo ::set-output name=GIT_TAG::${GITHUB_REF/refs\/tags\//}
+    - uses: azure/docker-login@v1
+      env:
+          DOCKER_CONFIG: ./.docker
+      with:
+        username: ${{ secrets.DOCKERHUB_USER }}
+        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+    - name: Build
+      env:
+        VERSION: ${{ steps.get_tag.outputs.GIT_TAG }}
+        DOCKER_CONFIG: ./.docker
+      run: |
+        make containers 
+        make push
