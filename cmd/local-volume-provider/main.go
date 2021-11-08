@@ -12,6 +12,7 @@ func main() {
 		BindFlags(pflag.CommandLine).
 		RegisterObjectStore("replicated.com/hostpath", newHostPathObjectStorePlugin).
 		RegisterObjectStore("replicated.com/nfs", newNFSObjectStorePlugin).
+		RegisterObjectStore("replicated.com/pvc", newPVCObjectStorePlugin).
 		Serve()
 }
 
@@ -21,4 +22,8 @@ func newHostPathObjectStorePlugin(logger logrus.FieldLogger) (interface{}, error
 
 func newNFSObjectStorePlugin(logger logrus.FieldLogger) (interface{}, error) {
 	return plugin.NewLocalVolumeObjectStore(logger, plugin.NFS), nil
+}
+
+func newPVCObjectStorePlugin(logger logrus.FieldLogger) (interface{}, error) {
+	return plugin.NewLocalVolumeObjectStore(logger, plugin.PVC), nil
 }

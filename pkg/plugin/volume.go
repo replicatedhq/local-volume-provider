@@ -11,7 +11,10 @@ type VolumeType string
 const (
 	Hostpath VolumeType = "hostpath"
 	NFS      VolumeType = "nfs"
+	PVC      VolumeType = "pvc"
 )
+
+// @jala-dx maybe this should be an interface now?
 
 // buildVoume creates a new k8s volume object based on the Velero BSL Config
 func buildVolume(vt VolumeType, config map[string]string) (*corev1.Volume, error) {
@@ -23,6 +26,7 @@ func buildVolume(vt VolumeType, config map[string]string) (*corev1.Volume, error
 		volumeSource, err = getHostPathVolumeSource(config)
 	case NFS:
 		volumeSource, err = getNFSVolumeSource(config)
+	// @jalaja-dx will need to add something about getting the volume here. Not sure where to put the PVC
 	default:
 		return nil, errors.New("unrecognized volume type")
 	}
