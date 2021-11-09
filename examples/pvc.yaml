@@ -1,0 +1,19 @@
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: default
+  namespace: velero
+spec:
+  backupSyncPeriod: 2m0s
+  provider: replicated.com/pvc
+  objectStorage:
+    # This corresponds to a unique PVC name that will be created; if you change this also change resticRepoPrefix
+    bucket: pvc-snapshots
+    # 'prefix' is not supported for this plugin; we assume all data is stored at the root
+  config:
+    # OPTIONAL: if not specified, will use the default storage class
+    storageClassName: "local-path"
+    # REQUIRED
+    storageSize: 20Gi
+    # Must be provided if you're using Restic; [default mount] + [bucket] + "restic"; only modify if you changed `bucket`
+    resticRepoPrefix: /var/velero-local-volume-provider/pvc-snapshots/restic
