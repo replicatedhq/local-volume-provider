@@ -61,7 +61,7 @@ func (o *LocalVolumeObjectStore) Init(config map[string]string) error {
 			return errors.Wrap(err, "could not get restic daemonset")
 		}
 
-		volumeSpec, err := buildVolume(o.volumeType, config)
+		volumeSpec, err := buildVolume(o.volumeType, config, log)
 		if err != nil {
 			return errors.Wrap(err, "failed to build volume")
 		}
