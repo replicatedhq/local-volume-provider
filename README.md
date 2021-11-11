@@ -17,9 +17,11 @@ Volume snapshots performed in this configuration without shared storage can resu
 
 To deploy the plugin image to a Velero server:
 
-1. Prepare the volume.
-    1. The volume or directory must already exist prior to creating the BackupStorageLocation
-    1. The mount directory must have write permissions that are either writable by the Velero container by default, which runs as non-root, or to the same Uid/Gid as the plugin configuration. See the Customization section below for how to configuration these settings.
+1. Make sure Velero is installed, optionally with Restic if Volume Snapshots are needed.
+1. (For NFS or HostPath volumes) Prepare the volume target.
+    1. The NFS share or host directory must already exist prior to creating the BackupStorageLocation
+    1. The directory must have write permissions that are either writable by the Velero container by default, which runs as non-root, or to the same Uid/Gid as the plugin configuration. 
+    See the Customization section below for how to configuration these settings.
 1. Make sure the plugin images are pushed to a registry that is accessible to your cluster's nodes.
 There are two images required for the plugin:
     1. replicated/local-volume-provider:v0.1.0
@@ -110,7 +112,7 @@ spec:
 ```
 
 
-## Building the plugin
+## Building & Testing the Plugin
 
 To build the plugin and fileserver, run
 
@@ -138,7 +140,40 @@ To build a temporary image for testing, run
 $ make ttl.sh
 ```
 
-This builds an image tagged as `ttl.sh/<unix user>/local-volume-provider:2h`.
+This builds images tagged as `ttl.sh/<unix user>/local-volume-provider:2h` and `ttl.sh/<unix user>/local-volume-fileserver:2h`.
+
+Make sure the plugin will be configured to use the correct security context and development images by applying the optional [ConfigMap](https://raw.githubusercontent.com/replicatedhq/local-volume-provider/main/examples/pluginConfigMap.yaml) (edit this configmap first with your username):
+
+### Velero Install Option 1
+
+1. To install Velero 1.6+ without the plugin installed (useful for testing the `velero` install/remove plugin commands). You need at least one plugin by default:
+```bash
+velero install --use-restic --use-volume-snapshots=false --namespace velero --plugins velero/velero-plugin-for-aws:v1.2.0 --no-default-backup-location --no-secret
+```
+1. Add the plugin
+```bash
+velero plugin add ttl.sh/<user>/local-volume-provider:2h
+```
+1. Create the default BackupStorageLocation (assuming Hostpath here)
+```bash
+velero backup-location create default --default --bucket my-hostpath-snaps --provider replicated.com/hostpath --config path=/tmp/my-host-path-to-snaps,resticRepoPrefix=/var/velero-local-volume-provider/my-hostpath-snaps/restic
+```
+
+### Install Option 2
+
+To install Velero with the plugin configured to Hostpath by default:
+```bash
+velero install --use-restic --use-volume-snapshots=false --namespace velero --provider replicated.com/hostpath --plugins ttl.sh/<username>/local-volume-provider:2h --bucket my-hostpath-snaps --backup-location-config path=/tmp/my-host-path-to-snaps,resticRepoPrefix=/var/velero-local-volume-provider/my-hostpath-snaps/restic --no-secret 
+```
+
+### Install Option 3
+
+To update an BackupStorageLocation (BSL) in an existing cluster with Velero, you must first delete the BSL and re-create as follows (assuming you are using the BSL created by default):
+```bash
+velero plugin add ttl.sh/<user>/local-volume-provider:2h
+velero backup-location delete default  #Hit "Y" to confirm 
+velero backup-location create default --default --bucket my-hostpath-snaps --provider replicated.com/hostpath --config path=/tmp/my-host-path-to-snaps,resticRepoPrefix=/var/velero-local-volume-provider/my-hostpath-snaps/restic
+```
 
 # Troubleshooting 
 
