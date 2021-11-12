@@ -137,10 +137,11 @@ func ensurePVC(config map[string]string, log *logrus.Entry) error {
 		return nil
 	}
 
-	storageClassName := "default"
+	var storageClassNamePtr *string
 	_, ok := config["storageClassName"]
 	if ok {
-		storageClassName = config["storageClassName"]
+		storageClassName := config["storageClassName"]
+		storageClassNamePtr = &storageClassName
 	}
 	persistentVolumeClaim := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -158,7 +159,7 @@ func ensurePVC(config map[string]string, log *logrus.Entry) error {
 					corev1.ResourceName(corev1.ResourceStorage): resource.MustParse(config["storageSize"]),
 				},
 			},
-			StorageClassName: &storageClassName,
+			StorageClassName: storageClassNamePtr,
 		},
 	}
 
