@@ -7,6 +7,7 @@ spec:
   config:
     # Must be provided if you're using Restic; [default mount] + [pvc-name] + "restic"
     resticRepoPrefix: /var/velero-local-volume-provider/snapshot-pvc/restic
+    storageClassName: longhorn
     storageSize: 1Gi
   default: true
   objectStorage:
