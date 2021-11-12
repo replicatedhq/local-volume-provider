@@ -96,7 +96,10 @@ func getNFSVolumeSource(config map[string]string) (*corev1.VolumeSource, error) 
 
 // getPVCVolumeSource returns an nfs volume source to be used in a k8s volume
 func getPVCVolumeSource(config map[string]string) (*corev1.VolumeSource, error) {
-	pvcName := config["bucket"]
+	pvcName, ok := config["bucket"]
+	if !ok {
+		return nil, errors.New("pvc config missing pvc name")
+	}
 	volumeSource := &corev1.VolumeSource{
 		PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 			ClaimName: pvcName,
