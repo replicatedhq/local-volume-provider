@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/pkg/errors"
@@ -32,6 +33,15 @@ func getSubDirectoryLayout() []string {
 		"metadata",
 		"plugins",
 	}
+}
+
+func sliceContainsString(list []string, s string) bool {
+	for _, v := range list {
+		if strings.Contains(v, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // isWritable compared the unix files permissions from the info object to the currently running user

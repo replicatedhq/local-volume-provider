@@ -14,6 +14,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Velero doesn't allow other non-velero directories in the root of the object store.
+// These directories are filter out of the reported list.
+var directoryDenyList = []string{"lost+found"}
+
 type LocalVolumeObjectStore struct {
 	log        logrus.FieldLogger
 	volumeType VolumeType
@@ -51,6 +55,8 @@ func (o *LocalVolumeObjectStore) Init(config map[string]string) error {
 		return errors.Wrap(err, "could not get Velero deployment")
 	}
 
+	volumeMountSpec := buildVolumeMount(bucket, path)
+
 	// Get the bucket, check if it exists
 	info, err := os.Stat(path)
 	if os.IsNotExist(err) {
@@ -65,8 +71,6 @@ func (o *LocalVolumeObjectStore) Init(config map[string]string) error {
 		if err != nil {
 			return errors.Wrap(err, "failed to build volume")
 		}
-
-		volumeMountSpec := buildVolumeMount(bucket, path)
 
 		// If restic is present, it must also mount the volume
 		if ds != nil {
@@ -103,7 +107,9 @@ func (o *LocalVolumeObjectStore) Init(config map[string]string) error {
 		}
 	}
 
-	err = ensureDeploymentHasConfing(deployment, o.opts)
+	// Always update the deployment for new configmap setting and the fileserver,
+	// even if the local volume is already mounted.
+	err = ensureDeploymentHasConfigAndFileserver(deployment, volumeMountSpec, o.opts)
 	if err != nil {
 		return errors.Wrap(err, "could not ensure plugin configuration")
 	}
@@ -194,15 +200,15 @@ func (o *LocalVolumeObjectStore) ListCommonPrefixes(bucket, prefix, delimiter st
 	})
 	log.Debug("LocalVolumeObjectStore.ListCommonPrefixes called")
 
-	infos, err := ioutil.ReadDir(path)
+	dirEntries, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
 	}
 
 	var dirs []string
-	for _, info := range infos {
-		if info.IsDir() {
-			dirs = append(dirs, info.Name())
+	for _, dirEntry := range dirEntries {
+		if dirEntry.IsDir() && !sliceContainsString(directoryDenyList, dirEntry.Name()) {
+			dirs = append(dirs, dirEntry.Name())
 		}
 	}
 
@@ -221,14 +227,14 @@ func (o *LocalVolumeObjectStore) ListObjects(bucket, prefix string) ([]string, e
 	})
 	log.Debug("LocalVolumeObjectStore.ListObjects called")
 
-	infos, err := ioutil.ReadDir(path)
+	dirEntries, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
 	}
 
 	var objects []string
-	for _, info := range infos {
-		objects = append(objects, filepath.Join(prefix, info.Name()))
+	for _, dirEntry := range dirEntries {
+		objects = append(objects, filepath.Join(prefix, dirEntry.Name()))
 	}
 
 	return objects, nil

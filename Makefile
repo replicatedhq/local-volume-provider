@@ -4,18 +4,15 @@ REGISTRY ?= replicated
 PLUGIN_NAME ?= local-volume-provider
 PLUGIN_IMAGE    ?= $(REGISTRY)/$(PLUGIN_NAME)
 
-FS_NAME ?= local-volume-fileserver
-FS_IMAGE    ?= $(REGISTRY)/$(FS_NAME)
-
 VERSION  ?= main 
 CURRENT_USER := $(shell id -u -n)
 
 GOOS   ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 
-# local builds the binary using 'go build' in the local environment.
+# builds the binary using 'go build' in the local environment.
 .PHONY: plugin
-local: build-dirs
+plugin: build-dirs
 	CGO_ENABLED=0 go build -v -o _output/bin/$(GOOS)/$(GOARCH) ./cmd/local-volume-provider
 
 .PHONY: fileserver
@@ -31,43 +28,24 @@ test:
 .PHONY: ci
 ci: verify-modules local test
 
-.PHONY: container-plugin
-container-plugin:
+.PHONY: container
+container:
 	docker build -t $(PLUGIN_IMAGE):$(VERSION) -f deploy/local-volume-provider/Dockerfile .
-
-.PHONY: container-fileserver
-container-fileserver:
-	docker build -t $(FS_IMAGE):$(VERSION) -f deploy/local-volume-fileserver/Dockerfile .
-
-.PHONY: containers
-containers: container-plugin container-fileserver
 
 # push pushes the Docker image to its registry.
 .PHONY: push
 push:
 	@docker push $(PLUGIN_IMAGE):$(VERSION)
-	@docker push $(FS_IMAGE):$(VERSION)
 ifeq ($(TAG_LATEST), true)
 	docker tag $(PLUGIN_IMAGE):$(VERSION) $(PLUGIN_IMAGE):latest
 	docker push $(PLUGIN_IMAGE):latest
-
-	docker tag $(FS_IMAGE):$(VERSION) $(FS_IMAGE):latest
-	docker push $(FS_IMAGE):latest
 endif
 
-.PHONY ttl.sh-fileserver:
-ttl.sh-plugin:
-	docker build -t $(CURRENT_USER)/$(PLUGIN_NAME):2h -f deploy/local-volume-provider/Dockerfile .
-	docker tag $(CURRENT_USER)/$(PLUGIN_NAME):2h ttl.sh/$(CURRENT_USER)/$(PLUGIN_NAME):2h
-	@docker push ttl.sh/$(CURRENT_USER)/$(PLUGIN_NAME):2h
-
-ttl.sh-fileserver:
-	docker build -t $(CURRENT_USER)/$(FS_NAME):2h -f deploy/local-volume-fileserver/Dockerfile  .
-	docker tag $(CURRENT_USER)/$(FS_NAME):2h ttl.sh/$(CURRENT_USER)/$(FS_NAME):2h
-	@docker push ttl.sh/$(CURRENT_USER)/$(FS_NAME):2h
-
-.PHONY: ttl.sh
-ttl.sh: ttl.sh-plugin ttl.sh-fileserver
+.PHONY ttl.sh:
+ttl.sh:
+	docker build -t $(CURRENT_USER)/$(PLUGIN_NAME):12h -f deploy/local-volume-provider/Dockerfile .
+	docker tag $(CURRENT_USER)/$(PLUGIN_NAME):12h ttl.sh/$(CURRENT_USER)/$(PLUGIN_NAME):12h
+	@docker push ttl.sh/$(CURRENT_USER)/$(PLUGIN_NAME):12h
 
 # modules updates Go module files
 .PHONY: modules
