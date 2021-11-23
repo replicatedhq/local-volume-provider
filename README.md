@@ -11,7 +11,7 @@ This plugin is also heavily based off of [Velero's example plugin](https://githu
 Volume snapshots performed in this configuration without shared storage can result in fragmented backups.
 1. Customized deployments of Velero (RBAC, container names), may not be supported.
 1. When BackupStorageLocations are removed, they are NOT cleaned up from the Velero and Restic pods.
-1. This plugin relies on an additional sidecar container, `local-volume-fileserver`, to provide signed-url access to storage data.
+1. This plugin relies on a sidecar container at runtime to provide signed-url access to storage data.
 
 ## Deploying the plugin
 
@@ -24,9 +24,8 @@ To deploy the plugin image to a Velero server:
     See the Customization section below for how to configuration these settings.
 1. Make sure the plugin images are pushed to a registry that is accessible to your cluster's nodes.
 There are two images required for the plugin:
-    1. replicated/local-volume-provider:v0.1.0
-    1. replicated/local-volume-fileserver:v0.1.0
-2. Run `velero plugin add replicated/local-volume-provider:v0.1.0`.
+    1. replicated/local-volume-provider:v0.3.0
+2. Run `velero plugin add replicated/local-volume-provider:v0.3.0`.
 This will re-deploy Velero with the plugin installed.
 3. Create a BackupStorageLocation according to the schemas below.
 The plugin will attach the volume to Velero (and Restic if available)
@@ -53,7 +52,7 @@ data:
   veleroDeploymentName: velero
   resticDaemonsetName: restic
   # Useful for local development
-  fileserverImage: ttl.sh/<your user>/local-volume-fileserver:2h
+  fileserverImage: ttl.sh/<your user>/local-volume-provider:12h
   # Helps to lock down file permissions to known users/groups on the target volume
   securityContextRunAsUser: "1001"
   securityContextRunAsGroup: "1001"
@@ -62,7 +61,7 @@ data:
 
 ## Removing the plugin
 
-The plugin can be removed with `velero plugin remove replicated/local-volume-provider:latest`.
+The plugin can be removed with `velero plugin remove replicated/local-volume-provider:v0.3.0`.
 This does not detach/delete any volumes that were used during operation.
 These can be removed manually using `kubectl edit` or by re-deploying velero (`velero uninstall` and `velero install ...`)
 
@@ -114,6 +113,9 @@ spec:
 
 ## Building & Testing the Plugin
 
+**NOTE**
+> You can't test the PVC object storage plugin on clusters without ReadWriteMany (RWX) storage providers. This means NO K3S, Codeserver or Codespaces.
+
 To build the plugin and fileserver, run
 
 ```bash
@@ -121,11 +123,10 @@ $ make plugin
 $ make fileserver
 ```
 
-To build the image, run
+To build the combined image, run
 
 ```bash
-$ make container-plugin
-$ make container-fileserver
+$ make container
 ```
 
 This builds an image tagged as `replicated/local-volume-provider:latest`. If you want to specify a different name or version/tag, run:
@@ -140,7 +141,7 @@ To build a temporary image for testing, run
 $ make ttl.sh
 ```
 
-This builds images tagged as `ttl.sh/<unix user>/local-volume-provider:2h` and `ttl.sh/<unix user>/local-volume-fileserver:2h`.
+This builds an image tagged as `ttl.sh/<unix user>/local-volume-provider:12h`.
 
 Make sure the plugin will be configured to use the correct security context and development images by applying the optional [ConfigMap](https://raw.githubusercontent.com/replicatedhq/local-volume-provider/main/examples/pluginConfigMap.yaml) (edit this configmap first with your username):
 
@@ -152,9 +153,13 @@ velero install --use-restic --use-volume-snapshots=false --namespace velero --pl
 ```
 1. Add the plugin
 ```bash
-velero plugin add ttl.sh/<user>/local-volume-provider:2h
+velero plugin add ttl.sh/<user>/local-volume-provider:12h
 ```
 1. Create the default BackupStorageLocation (assuming Hostpath here)
+
+kubectl apply -f examples/hostPath.yaml 
+
+**OR**, with Velero v1.7.1+
 ```bash
 velero backup-location create default --default --bucket my-hostpath-snaps --provider replicated.com/hostpath --config path=/tmp/my-host-path-to-snaps,resticRepoPrefix=/var/velero-local-volume-provider/my-hostpath-snaps/restic
 ```
@@ -163,14 +168,16 @@ velero backup-location create default --default --bucket my-hostpath-snaps --pro
 
 To install Velero with the plugin configured to Hostpath by default:
 ```bash
-velero install --use-restic --use-volume-snapshots=false --namespace velero --provider replicated.com/hostpath --plugins ttl.sh/<username>/local-volume-provider:2h --bucket my-hostpath-snaps --backup-location-config path=/tmp/my-host-path-to-snaps,resticRepoPrefix=/var/velero-local-volume-provider/my-hostpath-snaps/restic --no-secret 
+velero install --use-restic --use-volume-snapshots=false --namespace velero --provider replicated.com/hostpath --plugins ttl.sh/<username>/local-volume-provider:12h --bucket my-hostpath-snaps --backup-location-config path=/tmp/my-host-path-to-snaps,resticRepoPrefix=/var/velero-local-volume-provider/my-hostpath-snaps/restic --no-secret 
 ```
 
 ### Install Option 3
 
+**NOTE**: Velero v1.7.1+ only
+
 To update an BackupStorageLocation (BSL) in an existing cluster with Velero, you must first delete the BSL and re-create as follows (assuming you are using the BSL created by default):
 ```bash
-velero plugin add ttl.sh/<user>/local-volume-provider:2h
+velero plugin add ttl.sh/<user>/local-volume-provider:12h
 velero backup-location delete default --confirm
 velero backup-location create default --default --bucket my-hostpath-snaps --provider replicated.com/hostpath --config path=/tmp/my-host-path-to-snaps,resticRepoPrefix=/var/velero-local-volume-provider/my-hostpath-snaps/restic
 ```

@@ -26,8 +26,8 @@ type localVolumeObjectStoreOpts struct {
 }
 
 const (
-	fileServerContainerName         = "local-volume-fileserver"
-	defaultFileServerContainerImage = "replicated/local-volume-fileserver:v0.1.0"
+	fileServerContainerName         = "local-volume-provider"
+	defaultFileServerContainerImage = "replicated/local-volume-provider:v0.3.0"
 
 	defaultVeleroDeploymentName = "velero"
 	defaultResticDaemonsetName  = "restic"
@@ -94,37 +94,6 @@ func ensureDeploymentHasVolume(deployment *appsv1.Deployment, volumeSpec *corev1
 			})
 		}
 	}
-
-	// TODO (dans): make sure that the MOUNT_POINT env exists, even if the container is already there.
-	fileServerContainer := getContainerByName(deployment, fileServerContainerName)
-
-	fileServerImage := defaultFileServerContainerImage
-	if opts.fileserverImage != "" {
-		fileServerImage = opts.fileserverImage
-	}
-
-	if fileServerContainer == nil {
-		fileServerContainer = &corev1.Container{
-			Name:  fileServerContainerName,
-			Image: fileServerImage,
-			Env: []corev1.EnvVar{
-				{
-					Name:  "MOUNT_POINT",
-					Value: getRoot(),
-				},
-				{
-					Name: "VELERO_NAMESPACE",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "metadata.namespace",
-						},
-					},
-				},
-			},
-		}
-		deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, *fileServerContainer)
-	}
-	fileServerContainer.VolumeMounts = append(fileServerContainer.VolumeMounts, *volumeMountSpec)
 
 	clientset, err := k8sutil.GetClientset()
 	if err != nil {
@@ -348,9 +317,19 @@ func getPodSecurityContext(opts *localVolumeObjectStoreOpts) (*corev1.PodSecurit
 	return securityCxt, nil
 }
 
-// ensureDeploymentHasConfig will update the velero deployment security context as-needed based on config options.
-func ensureDeploymentHasConfing(deployment *appsv1.Deployment, opts *localVolumeObjectStoreOpts) error {
+func containerHasVolumeMount(container *corev1.Container, name string) bool {
+	for _, volumeMount := range container.VolumeMounts {
+		if volumeMount.Name == name {
+			return true
+		}
+	}
+	return false
+}
 
+// ensureDeploymentHasConfig will update the velero deployment security context as-needed based on config options.
+func ensureDeploymentHasConfigAndFileserver(deployment *appsv1.Deployment, volumeMountSpec *corev1.VolumeMount, opts *localVolumeObjectStoreOpts) error {
+
+	// Security Context
 	podSecurityCxt, err := getPodSecurityContext(opts)
 	if err != nil {
 		return errors.Wrap(err, "unable to get security context")
@@ -359,6 +338,46 @@ func ensureDeploymentHasConfing(deployment *appsv1.Deployment, opts *localVolume
 		deployment.Spec.Template.Spec.SecurityContext = podSecurityCxt
 	}
 
+	// Fileserver
+	// TODO (dans): make sure that the MOUNT_POINT env exists, even if the container is already there.
+	fileServerContainer := getContainerByName(deployment, fileServerContainerName)
+
+	fileServerImage := defaultFileServerContainerImage
+	if opts.fileserverImage != "" {
+		fileServerImage = opts.fileserverImage
+	}
+
+	// If the sidecar already exists and a volume mount with the same name, nothing to change
+	if fileServerContainer != nil && containerHasVolumeMount(fileServerContainer, volumeMountSpec.Name) {
+		return nil
+	}
+
+	if fileServerContainer == nil {
+		fileServerContainer = &corev1.Container{
+			Name:    fileServerContainerName,
+			Image:   fileServerImage,
+			Command: []string{"/local-volume-fileserver"},
+			Env: []corev1.EnvVar{
+				{
+					Name:  "MOUNT_POINT",
+					Value: getRoot(),
+				},
+				{
+					Name: "VELERO_NAMESPACE",
+					ValueFrom: &corev1.EnvVarSource{
+						FieldRef: &corev1.ObjectFieldSelector{
+							FieldPath: "metadata.namespace",
+						},
+					},
+				},
+			},
+		}
+		deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, *fileServerContainer)
+	}
+
+	fileServerContainer.VolumeMounts = append(fileServerContainer.VolumeMounts, *volumeMountSpec)
+
+	// Update
 	clientset, err := k8sutil.GetClientset()
 	if err != nil {
 		return errors.Wrap(err, "unable to get kubernetes clientset")

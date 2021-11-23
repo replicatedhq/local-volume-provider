@@ -10,6 +10,6 @@ metadata:
 data:
   veleroDeploymentName: velero
   resticDaemonsetName: restic
-  fileserverImage: ttl.sh/dans/local-volume-fileserver:2h
+  fileserverImage: ttl.sh/dans/local-volume-provider:12h
   securityContextRunAsUser: "1001"
   securityContextFsGroup: "1001"
