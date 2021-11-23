@@ -26,5 +26,5 @@ jobs:
         VERSION: ${{ steps.get_tag.outputs.GIT_TAG }}
         DOCKER_CONFIG: ./.docker
       run: |
-        make containers 
+        make container 
         make push
