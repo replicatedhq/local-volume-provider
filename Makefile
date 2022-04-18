@@ -10,14 +10,16 @@ CURRENT_USER := $(shell id -u -n)
 GOOS   ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 
+BUILDFLAGS = -ldflags=" -X github.com/replicatedhq/local-volume-provider/pkg/version.version=$(VERSION) "
+
 # builds the binary using 'go build' in the local environment.
 .PHONY: plugin
 plugin: build-dirs
-	CGO_ENABLED=0 go build -v -o _output/bin/$(GOOS)/$(GOARCH) ./cmd/local-volume-provider
+	CGO_ENABLED=0 go build $(BUILDFLAGS) -v -o _output/bin/$(GOOS)/$(GOARCH) ./cmd/local-volume-provider
 
 .PHONY: fileserver
 fileserver: build-dirs
-	CGO_ENABLED=0 go build -v -o _output/bin/$(GOOS)/$(GOARCH) ./cmd/local-volume-fileserver
+	CGO_ENABLED=0 go build $(BUILDFLAGS) -v -o _output/bin/$(GOOS)/$(GOARCH) ./cmd/local-volume-fileserver
 
 # test runs unit tests using 'go test' in the local environment.
 .PHONY: test
@@ -30,7 +32,7 @@ ci: verify-modules local test
 
 .PHONY: container
 container:
-	docker build -t $(PLUGIN_IMAGE):$(VERSION) -f deploy/local-volume-provider/Dockerfile .
+	docker build -t $(PLUGIN_IMAGE):$(VERSION) -f deploy/local-volume-provider/Dockerfile --build-arg VERSION=$(VERSION) .
 
 # push pushes the Docker image to its registry.
 .PHONY: push
