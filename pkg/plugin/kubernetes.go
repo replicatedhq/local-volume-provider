@@ -9,6 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/replicatedhq/local-volume-provider/pkg/k8sutil"
+	"github.com/replicatedhq/local-volume-provider/pkg/version"
 	veleroplugin "github.com/vmware-tanzu/velero/pkg/plugin/framework"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -26,13 +27,16 @@ type localVolumeObjectStoreOpts struct {
 }
 
 const (
-	fileServerContainerName         = "local-volume-provider"
-	defaultFileServerContainerImage = "replicated/local-volume-provider:v0.3.0"
+	fileServerContainerName = "local-volume-provider"
 
 	defaultVeleroDeploymentName = "velero"
 	defaultResticDaemonsetName  = "restic"
 
 	signingSecretName = "lvp-signingsecret"
+)
+
+var (
+	defaultFileServerContainerImage = fmt.Sprintf("replicated/local-volume-provider:%s", version.Get())
 )
 
 // getDeployment returns the deployment for velero. It will return an error if it can not be found.

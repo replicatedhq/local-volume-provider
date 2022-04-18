@@ -24,8 +24,8 @@ To deploy the plugin image to a Velero server:
     See the Customization section below for how to configuration these settings.
 1. Make sure the plugin images are pushed to a registry that is accessible to your cluster's nodes.
 There are two images required for the plugin:
-    1. replicated/local-volume-provider:v0.3.0
-2. Run `velero plugin add replicated/local-volume-provider:v0.3.0`.
+    1. replicated/local-volume-provider:v0.3.2
+2. Run `velero plugin add replicated/local-volume-provider:v0.3.2`.
 This will re-deploy Velero with the plugin installed.
 3. Create a BackupStorageLocation according to the schemas below.
 The plugin will attach the volume to Velero (and Restic if available)
@@ -61,7 +61,7 @@ data:
 
 ## Removing the plugin
 
-The plugin can be removed with `velero plugin remove replicated/local-volume-provider:v0.3.0`.
+The plugin can be removed with `velero plugin remove replicated/local-volume-provider:v0.3.2`.
 This does not detach/delete any volumes that were used during operation.
 These can be removed manually using `kubectl edit` or by re-deploying velero (`velero uninstall` and `velero install ...`)
 
@@ -129,7 +129,7 @@ To build the combined image, run
 $ make container
 ```
 
-This builds an image tagged as `replicated/local-volume-provider:latest`. If you want to specify a different name or version/tag, run:
+This builds an image tagged as `replicated/local-volume-provider:main`. If you want to specify a different name or version/tag, run:
 
 ```bash
 $ IMAGE=your-repo/your-name VERSION=your-version-tag make container 

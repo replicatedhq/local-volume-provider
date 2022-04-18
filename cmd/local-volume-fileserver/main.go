@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -9,9 +10,15 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/replicatedhq/local-volume-provider/pkg/plugin"
+	"github.com/replicatedhq/local-volume-provider/pkg/version"
 )
 
 func main() {
+	if len(os.Args) > 0 && os.Args[1] == "version" {
+		fmt.Println(version.Get())
+		os.Exit(0)
+	}
+
 	app := fiber.New()
 
 	mountPoint := os.Getenv("MOUNT_POINT")
