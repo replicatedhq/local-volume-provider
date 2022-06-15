@@ -23,6 +23,7 @@ ARG VERSION=main
 RUN CGO_ENABLED=0 go build -ldflags=" -X github.com/replicatedhq/local-volume-provider/pkg/version.version=$VERSION " -o /go/bin/local-volume-fileserver ./cmd/local-volume-fileserver
 
 FROM debian:buster-slim
+RUN apt-get update && apt-get install --no-install-recommends -y dpkg
 RUN mkdir /plugins
 COPY --from=build-plugin /go/bin/local-volume-provider /plugins/
 COPY --from=build-fileserver /go/bin/local-volume-fileserver .
