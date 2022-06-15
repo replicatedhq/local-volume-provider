@@ -32,7 +32,7 @@ ci: verify-modules local test
 
 .PHONY: container
 container:
-	docker build -t $(PLUGIN_IMAGE):$(VERSION) -f deploy/local-volume-provider/Dockerfile --build-arg VERSION=$(VERSION) .
+	docker build --pull -t $(PLUGIN_IMAGE):$(VERSION) -f deploy/local-volume-provider/Dockerfile --build-arg VERSION=$(VERSION) .
 
 # push pushes the Docker image to its registry.
 .PHONY: push
