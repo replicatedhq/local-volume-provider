@@ -11,6 +11,7 @@ require (
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/pflag v1.0.5
 	github.com/vmware-tanzu/velero v1.6.0
+	golang.org/x/net v0.0.0-20220906165146-f3363e06e74c // indirect
 	k8s.io/api v0.21.3
 	k8s.io/apimachinery v0.21.3
 	k8s.io/client-go v0.21.3
