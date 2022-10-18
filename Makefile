@@ -71,3 +71,12 @@ build-dirs:
 clean:
 	@echo "cleaning"
 	rm -rf _output
+
+.PHONY: scan
+scan:
+	trivy fs \
+		--security-checks vuln \
+		--exit-code=1 \
+		--severity="HIGH,CRITICAL" \
+		--ignore-unfixed \
+		./
