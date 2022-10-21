@@ -156,9 +156,9 @@ velero install --use-restic --use-volume-snapshots=false --namespace velero --pl
 velero plugin add ttl.sh/<user>/local-volume-provider:12h
 ```
 1. Create the default BackupStorageLocation (assuming Hostpath here)
-
+```
 kubectl apply -f examples/hostPath.yaml 
-
+```
 **OR**, with Velero v1.7.1+
 ```bash
 velero backup-location create default --default --bucket my-hostpath-snaps --provider replicated.com/hostpath --config path=/tmp/my-host-path-to-snaps,resticRepoPrefix=/var/velero-local-volume-provider/my-hostpath-snaps/restic

@@ -1,4 +1,4 @@
-FROM golang:1.16-buster AS build-plugin
+FROM golang:1.19-buster AS build-plugin
 ENV GOPROXY=https://proxy.golang.org
 ENV PROJECTPATH=/go/src/github.com/replicatedhq/local-volume-provider/local-volume-fileserver
 WORKDIR $PROJECTPATH
@@ -10,7 +10,7 @@ COPY pkg ./pkg
 ARG VERSION=main
 RUN CGO_ENABLED=0 go build -ldflags=" -X github.com/replicatedhq/local-volume-provider/pkg/version.version=$VERSION " -o /go/bin/local-volume-provider ./cmd/local-volume-provider
 
-FROM golang:1.16-buster as build-fileserver
+FROM golang:1.19-buster as build-fileserver
 ENV GOPROXY=https://proxy.golang.org
 ENV PROJECTPATH=/go/src/github.com/replicatedhq/local-volume-provider/local-volume-fileserver
 WORKDIR $PROJECTPATH
