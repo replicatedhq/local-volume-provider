@@ -57,6 +57,8 @@ data:
   securityContextRunAsUser: "1001"
   securityContextRunAsGroup: "1001"
   securityContextFsGroup: "1001"
+  # If provided, will clean up all other volumes on the Velero and Restic pods
+  preserveVolumes: "my-bucket,my-other-bucket"
 ```
 
 ## Removing the plugin
