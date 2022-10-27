@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/replicatedhq/local-volume-provider/pkg/k8sutil"
 	"github.com/sirupsen/logrus"
 )
 
@@ -50,68 +51,29 @@ func (o *LocalVolumeObjectStore) Init(config map[string]string) error {
 		return errors.Wrap(err, "failed to get local volume configuration")
 	}
 
-	deployment, err := getDeployment(o.opts)
+	if err := ensureFilesystem(path, prefix, log); err != nil {
+		return errors.Wrap(err, "failed to ensure filesystem")
+	}
+
+	clientset, err := k8sutil.GetClientset()
 	if err != nil {
-		return errors.Wrap(err, "could not get Velero deployment")
+		return errors.Wrap(err, "failed to get kubernetes clientset")
 	}
 
-	volumeMountSpec := buildVolumeMount(bucket, path)
-
-	// Get the bucket, check if it exists
-	info, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		log.Info("Bucket/Volume does not already exist. Initializing.")
-
-		ds, err := getDaemonset(o.opts)
-		if err != nil {
-			return errors.Wrap(err, "could not get restic daemonset")
-		}
-
-		volumeSpec, err := buildVolume(o.volumeType, config, log)
-		if err != nil {
-			return errors.Wrap(err, "failed to build volume")
-		}
-
-		// If restic is present, it must also mount the volume
-		if ds != nil {
-			err = ensureDaemonsetHasVolume(ds, volumeSpec, volumeMountSpec)
-			if err != nil {
-				return errors.Wrap(err, "failed to update restic daemonset")
-			}
-		}
-
-		err = ensureDeploymentHasVolume(deployment, volumeSpec, volumeMountSpec, o.opts)
-		if err != nil {
-			return errors.Wrap(err, "failed to update velero deployment")
-		}
-
-		return errors.New("volume initialized, restart pending")
-
-	} else if err != nil {
-		return errors.Wrap(err, "error checking if bucket/volume exists")
+	ensureResourcesOpts := EnsureResourcesOpts{
+		clientset:  clientset,
+		namespace:  os.Getenv("VELERO_NAMESPACE"),
+		bucket:     bucket,
+		prefix:     prefix,
+		path:       path,
+		config:     config,
+		pluginOpts: o.opts,
+		volumeType: o.volumeType,
+		log:        log,
 	}
 
-	log.Debug("Bucket/Volume already exists")
-
-	if !isWriteable(log, info) {
-		log.Debugf("Is path a directory: %+v", info.Mode().IsDir())
-		log.Debugf("Directory permissions: %+v", info.Mode().Perm())
-		log.Error("Directory is not writable")
-		return errors.New("directory is not writeable")
-	}
-
-	for _, subdir := range getSubDirectoryLayout() {
-		subpath := filepath.Join(path, prefix, subdir)
-		if err := os.MkdirAll(subpath, 0755); err != nil {
-			return errors.Wrapf(err, "could not create directory %s", subpath)
-		}
-	}
-
-	// Always update the deployment for new configmap setting and the fileserver,
-	// even if the local volume is already mounted.
-	err = ensureDeploymentHasConfigAndFileserver(deployment, volumeMountSpec, o.opts)
-	if err != nil {
-		return errors.Wrap(err, "could not ensure plugin configuration")
+	if err := ensureResources(ensureResourcesOpts); err != nil {
+		return errors.Wrap(err, "failed to ensure resources")
 	}
 
 	return nil
@@ -315,6 +277,15 @@ func (o *LocalVolumeObjectStore) getLocalVolumeStoreOpts() error {
 		o.opts = &localVolumeObjectStoreOpts{}
 	} else {
 		o.log.Debug("Found a configmap for this plugin")
+
+		preserveVolumes := make(map[string]bool)
+		if pluginConfigMap.Data["preserveVolumes"] != "" {
+			preserveVolumesList := strings.Split(pluginConfigMap.Data["preserveVolumes"], ",")
+			for _, volume := range preserveVolumesList {
+				preserveVolumes[volume] = true
+			}
+		}
+
 		o.opts = &localVolumeObjectStoreOpts{
 			veleroDeploymentName:      pluginConfigMap.Data["veleroDeploymentName"],
 			resticDaemonsetName:       pluginConfigMap.Data["resticDaemonsetName"],
@@ -322,6 +293,7 @@ func (o *LocalVolumeObjectStore) getLocalVolumeStoreOpts() error {
 			securityContextRunAsUser:  pluginConfigMap.Data["securityContextRunAsUser"],
 			securityContextRunAsGroup: pluginConfigMap.Data["securityContextRunAsGroup"],
 			securityContextFSGroup:    pluginConfigMap.Data["securityContextFsGroup"],
+			preserveVolumes:           preserveVolumes,
 		}
 	}
 	return nil

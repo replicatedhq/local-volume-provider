@@ -10,11 +10,13 @@ import (
 	"github.com/pkg/errors"
 	"github.com/replicatedhq/local-volume-provider/pkg/k8sutil"
 	"github.com/replicatedhq/local-volume-provider/pkg/version"
+	"github.com/sirupsen/logrus"
 	veleroplugin "github.com/vmware-tanzu/velero/pkg/plugin/framework"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kuberneteserrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 type localVolumeObjectStoreOpts struct {
@@ -24,6 +26,7 @@ type localVolumeObjectStoreOpts struct {
 	securityContextRunAsUser  string
 	securityContextRunAsGroup string
 	securityContextFSGroup    string
+	preserveVolumes           map[string]bool
 }
 
 const (
@@ -39,19 +42,102 @@ var (
 	defaultFileServerContainerImage = fmt.Sprintf("replicated/local-volume-provider:%s", version.Get())
 )
 
-// getDeployment returns the deployment for velero. It will return an error if it can not be found.
-func getDeployment(opts *localVolumeObjectStoreOpts) (*appsv1.Deployment, error) {
-	clientset, err := k8sutil.GetClientset()
+type EnsureResourcesOpts struct {
+	clientset  kubernetes.Interface
+	namespace  string
+	bucket     string
+	prefix     string
+	path       string
+	config     map[string]string
+	pluginOpts *localVolumeObjectStoreOpts
+	volumeType VolumeType
+	log        *logrus.Entry
+}
+
+// ensureResources ensures that the resources needed for the plugin are present
+// and will update them if they are not.
+func ensureResources(opts EnsureResourcesOpts) error {
+	ds, err := getDaemonset(opts.clientset, opts.namespace, opts.pluginOpts)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to get kubernetes clientset")
+		return errors.Wrap(err, "could not get restic daemonset")
 	}
 
+	deployment, err := getDeployment(opts.clientset, opts.namespace, opts.pluginOpts)
+	if err != nil {
+		return errors.Wrap(err, "could not get Velero deployment")
+	}
+
+	// if `preserveVolumes` is specified, clean up all other volumes and volume mounts
+	if len(opts.pluginOpts.preserveVolumes) > 0 {
+		if !opts.pluginOpts.preserveVolumes[opts.bucket] {
+			// BackupStorageLocation exists, but the bucket is not in `preserveVolumes`, do not update the resources
+			opts.log.Warnf("`preserveVolumes` was specified, but %s was not included. The volume will not be created/mounted.", opts.bucket)
+			return nil
+		}
+
+		if ds != nil {
+			ds.Spec.Template.Spec.Volumes = removeUnusedVolumes(ds.Spec.Template.Spec.Volumes, opts.pluginOpts.preserveVolumes)
+			ds.Spec.Template.Spec.Containers[0].VolumeMounts = removeUnusedVolumeMounts(ds.Spec.Template.Spec.Containers[0].VolumeMounts, opts.pluginOpts.preserveVolumes)
+		}
+
+		deployment.Spec.Template.Spec.Volumes = removeUnusedVolumes(deployment.Spec.Template.Spec.Volumes, opts.pluginOpts.preserveVolumes)
+		// remove unused mounts from all containers in the deployment
+		for idx := range deployment.Spec.Template.Spec.Containers {
+			container := &deployment.Spec.Template.Spec.Containers[idx]
+			container.VolumeMounts = removeUnusedVolumeMounts(container.VolumeMounts, opts.pluginOpts.preserveVolumes)
+		}
+	}
+
+	volumeMountSpec := buildVolumeMount(opts.bucket, opts.path)
+
+	volumeSpec, err := buildVolume(opts.volumeType, opts.config, opts.log)
+	if err != nil {
+		return errors.Wrap(err, "failed to build volume")
+	}
+
+	if ds != nil {
+		// If restic is present, it must also mount the volume
+		err = ensureDaemonsetHasVolume(ds, volumeSpec, volumeMountSpec)
+		if err != nil {
+			return errors.Wrap(err, "failed to update restic daemonset")
+		}
+
+		// Update the restic daemonset
+		_, err = opts.clientset.AppsV1().DaemonSets(opts.namespace).Update(context.TODO(), ds, metav1.UpdateOptions{})
+		if err != nil {
+			return errors.Wrap(err, "unable to update restic daemonset")
+		}
+	}
+
+	err = ensureDeploymentHasVolume(deployment, volumeSpec, volumeMountSpec, opts.pluginOpts)
+	if err != nil {
+		return errors.Wrap(err, "failed to update velero deployment")
+	}
+
+	// Always update the deployment for new configmap setting and the fileserver,
+	// even if the local volume is already mounted.
+	err = ensureDeploymentHasConfigAndFileserver(deployment, volumeMountSpec, opts.pluginOpts)
+	if err != nil {
+		return errors.Wrap(err, "could not ensure plugin configuration")
+	}
+
+	// Update Velero deployment
+	_, err = opts.clientset.AppsV1().Deployments(opts.namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+	if err != nil {
+		return errors.Wrap(err, "unable to update velero deployment")
+	}
+
+	return nil
+}
+
+// getDeployment returns the deployment for velero. It will return an error if it can not be found.
+func getDeployment(clientset kubernetes.Interface, namespace string, opts *localVolumeObjectStoreOpts) (*appsv1.Deployment, error) {
 	name := defaultVeleroDeploymentName
 	if opts.veleroDeploymentName != "" {
 		name = opts.veleroDeploymentName
 	}
 
-	existingDeployment, err := clientset.AppsV1().Deployments(os.Getenv("VELERO_NAMESPACE")).Get(context.TODO(), name, metav1.GetOptions{})
+	existingDeployment, err := clientset.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if kuberneteserrors.IsNotFound(err) {
 		return nil, errors.Wrap(err, "velero deployment not found")
 	} else if err != nil {
@@ -99,33 +185,18 @@ func ensureDeploymentHasVolume(deployment *appsv1.Deployment, volumeSpec *corev1
 		}
 	}
 
-	clientset, err := k8sutil.GetClientset()
-	if err != nil {
-		return errors.Wrap(err, "unable to get kubernetes clientset")
-	}
-
-	_, err = clientset.AppsV1().Deployments(os.Getenv("VELERO_NAMESPACE")).Update(context.TODO(), deployment, metav1.UpdateOptions{})
-	if err != nil {
-		return errors.Wrap(err, "unable to update velero deployment")
-	}
-
 	return nil
 }
 
 // getDaemonset returns the daemonset for restic. It will return nil if it cannot be found,
 // as restic is an optional component
-func getDaemonset(opts *localVolumeObjectStoreOpts) (*appsv1.DaemonSet, error) {
-	clientset, err := k8sutil.GetClientset()
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to get kubernetes clientset")
-	}
-
+func getDaemonset(clientset kubernetes.Interface, namespace string, opts *localVolumeObjectStoreOpts) (*appsv1.DaemonSet, error) {
 	name := defaultResticDaemonsetName
 	if opts.resticDaemonsetName != "" {
 		name = opts.resticDaemonsetName
 	}
 
-	existingDaemonset, err := clientset.AppsV1().DaemonSets(os.Getenv("VELERO_NAMESPACE")).Get(context.TODO(), name, metav1.GetOptions{})
+	existingDaemonset, err := clientset.AppsV1().DaemonSets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if kuberneteserrors.IsNotFound(err) {
 		return nil, nil
 	} else if err != nil {
@@ -147,17 +218,39 @@ func ensureDaemonsetHasVolume(ds *appsv1.DaemonSet, volumeSpec *corev1.Volume, v
 		ds.Spec.Template.Spec.Containers[0].VolumeMounts = append(ds.Spec.Template.Spec.Containers[0].VolumeMounts, *volumeMountSpec)
 	}
 
-	clientset, err := k8sutil.GetClientset()
-	if err != nil {
-		return errors.Wrap(err, "unable to get kubernetes clientset")
-	}
-
-	_, err = clientset.AppsV1().DaemonSets(os.Getenv("VELERO_NAMESPACE")).Update(context.TODO(), ds, metav1.UpdateOptions{})
-	if err != nil {
-		return errors.Wrap(err, "unable to update restic daemonset")
-	}
-
 	return nil
+}
+
+// removeUnusedVolumes removes volumes that are not specified in preserveVolumes
+func removeUnusedVolumes(volumes []corev1.Volume, preserveVolumes map[string]bool) []corev1.Volume {
+	var newVolumes []corev1.Volume
+	for _, volume := range volumes {
+		// always preserve 'plugins', 'host-pods', 'scratch', and 'cloud-credentials' as these are used by velero and restic
+		if volume.Name == "plugins" || volume.Name == "host-pods" || volume.Name == "scratch" || volume.Name == "cloud-credentials" {
+			newVolumes = append(newVolumes, volume)
+			continue
+		}
+		if preserveVolumes[volume.Name] {
+			newVolumes = append(newVolumes, volume)
+		}
+	}
+	return newVolumes
+}
+
+// removeUnusedVolumeMounts removes volume mounts that are not specified in preserveVolumes
+func removeUnusedVolumeMounts(volumeMounts []corev1.VolumeMount, preserveVolumes map[string]bool) []corev1.VolumeMount {
+	var newVolumeMounts []corev1.VolumeMount
+	for _, volumeMount := range volumeMounts {
+		// always preserve 'plugins', 'host-pods', 'scratch', and 'cloud-credentials' as these are used by velero and restic
+		if volumeMount.Name == "plugins" || volumeMount.Name == "host-pods" || volumeMount.Name == "scratch" || volumeMount.Name == "cloud-credentials" {
+			newVolumeMounts = append(newVolumeMounts, volumeMount)
+			continue
+		}
+		if preserveVolumes[volumeMount.Name] {
+			newVolumeMounts = append(newVolumeMounts, volumeMount)
+		}
+	}
+	return newVolumeMounts
 }
 
 // getContainerByName returns a pointer to the container with the given name in a deployment,
@@ -375,21 +468,11 @@ func ensureDeploymentHasConfigAndFileserver(deployment *appsv1.Deployment, volum
 					},
 				},
 			},
+			VolumeMounts: []corev1.VolumeMount{*volumeMountSpec},
 		}
 		deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, *fileServerContainer)
-	}
-
-	fileServerContainer.VolumeMounts = append(fileServerContainer.VolumeMounts, *volumeMountSpec)
-
-	// Update
-	clientset, err := k8sutil.GetClientset()
-	if err != nil {
-		return errors.Wrap(err, "unable to get kubernetes clientset")
-	}
-
-	_, err = clientset.AppsV1().Deployments(os.Getenv("VELERO_NAMESPACE")).Update(context.TODO(), deployment, metav1.UpdateOptions{})
-	if err != nil {
-		return errors.Wrap(err, "unable to update velero deployment")
+	} else {
+		fileServerContainer.VolumeMounts = append(fileServerContainer.VolumeMounts, *volumeMountSpec)
 	}
 
 	return nil
