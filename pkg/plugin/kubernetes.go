@@ -99,7 +99,12 @@ func ensureResources(opts EnsureResourcesOpts) error {
 		// If restic is present, it must also mount the volume
 		err = ensureDaemonsetHasVolume(ds, volumeSpec, volumeMountSpec)
 		if err != nil {
-			return errors.Wrap(err, "failed to update restic daemonset")
+			return errors.Wrap(err, "failed to ensure restic daemonset has volume")
+		}
+
+		err = ensureDaemonsetHasConfig(ds, opts.pluginOpts)
+		if err != nil {
+			return errors.Wrap(err, "failed to ensure restic daemonset has plugin configuration")
 		}
 
 		// Update the restic daemonset
@@ -109,9 +114,9 @@ func ensureResources(opts EnsureResourcesOpts) error {
 		}
 	}
 
-	err = ensureDeploymentHasVolume(deployment, volumeSpec, volumeMountSpec, opts.pluginOpts)
+	err = ensureDeploymentHasVolume(deployment, volumeSpec, volumeMountSpec)
 	if err != nil {
-		return errors.Wrap(err, "failed to update velero deployment")
+		return errors.Wrap(err, "failed to ensure velero deployment has volume")
 	}
 
 	// Always update the deployment for new configmap setting and the fileserver,
@@ -149,20 +154,12 @@ func getDeployment(clientset kubernetes.Interface, namespace string, opts *local
 
 // ensureDeploymentHasVolume check the velero deployment for a matching Volume name
 // and if it does not exist, adds it to the podspec.
-func ensureDeploymentHasVolume(deployment *appsv1.Deployment, volumeSpec *corev1.Volume, volumeMountSpec *corev1.VolumeMount, opts *localVolumeObjectStoreOpts) error {
+func ensureDeploymentHasVolume(deployment *appsv1.Deployment, volumeSpec *corev1.Volume, volumeMountSpec *corev1.VolumeMount) error {
 
 	// If the volume name is the same, but the path is different, we should fix the path in place
 	if exists, idx := podHasDuplicateVolumeName(&deployment.Spec.Template.Spec, volumeSpec); exists {
 		deployment.Spec.Template.Spec.Volumes[idx] = *volumeSpec
 	} else {
-		podSecurityCxt, err := getPodSecurityContext(opts)
-		if err != nil {
-			return errors.Wrap(err, "unable to get security context")
-		}
-		if podSecurityCxt != nil {
-			deployment.Spec.Template.Spec.SecurityContext = podSecurityCxt
-		}
-
 		deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, *volumeSpec)
 
 		// TODO (dans): user configuration for velero container name
@@ -218,6 +215,18 @@ func ensureDaemonsetHasVolume(ds *appsv1.DaemonSet, volumeSpec *corev1.Volume, v
 		ds.Spec.Template.Spec.Containers[0].VolumeMounts = append(ds.Spec.Template.Spec.Containers[0].VolumeMounts, *volumeMountSpec)
 	}
 
+	return nil
+}
+
+// ensureDaemonsetHasConfig will update the restic daemonset as-needed based on config options.
+func ensureDaemonsetHasConfig(ds *appsv1.DaemonSet, opts *localVolumeObjectStoreOpts) error {
+	podSecurityCxt, err := getPodSecurityContext(opts)
+	if err != nil {
+		return errors.Wrap(err, "unable to get security context")
+	}
+	if podSecurityCxt != nil {
+		ds.Spec.Template.Spec.SecurityContext = podSecurityCxt
+	}
 	return nil
 }
 
