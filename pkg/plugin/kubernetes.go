@@ -136,12 +136,7 @@ func ensureResources(opts EnsureResourcesOpts) error {
 
 // getDeployment returns the deployment for velero. It will return an error if it can not be found.
 func getDeployment(clientset kubernetes.Interface, namespace string, opts *localVolumeObjectStoreOpts) (*appsv1.Deployment, error) {
-	name := VeleroDeploymentName
-	if opts.veleroDeploymentName != "" {
-		name = opts.veleroDeploymentName
-	}
-
-	existingDeployment, err := clientset.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	existingDeployment, err := clientset.AppsV1().Deployments(namespace).Get(context.TODO(), VeleroDeploymentName, metav1.GetOptions{})
 	if kuberneteserrors.IsNotFound(err) {
 		return nil, errors.Wrap(err, "velero deployment not found")
 	} else if err != nil {
