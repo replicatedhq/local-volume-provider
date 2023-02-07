@@ -287,8 +287,6 @@ func (o *LocalVolumeObjectStore) getLocalVolumeStoreOpts() error {
 		}
 
 		o.opts = &localVolumeObjectStoreOpts{
-			veleroDeploymentName:      pluginConfigMap.Data["veleroDeploymentName"],
-			resticDaemonsetName:       pluginConfigMap.Data["resticDaemonsetName"],
 			fileserverImage:           pluginConfigMap.Data["fileserverImage"],
 			securityContextRunAsUser:  pluginConfigMap.Data["securityContextRunAsUser"],
 			securityContextRunAsGroup: pluginConfigMap.Data["securityContextRunAsGroup"],
