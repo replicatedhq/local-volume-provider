@@ -20,8 +20,6 @@ import (
 )
 
 type localVolumeObjectStoreOpts struct {
-	veleroDeploymentName      string
-	resticDaemonsetName       string
 	fileserverImage           string
 	securityContextRunAsUser  string
 	securityContextRunAsGroup string
@@ -32,8 +30,9 @@ type localVolumeObjectStoreOpts struct {
 const (
 	fileServerContainerName = "local-volume-provider"
 
-	defaultVeleroDeploymentName = "velero"
-	defaultResticDaemonsetName  = "restic"
+	VeleroDeploymentName   = "velero"
+	NodeAgentDaemonsetName = "node-agent"
+	ResticDaemonsetName    = "restic"
 
 	signingSecretName = "lvp-signingsecret"
 )
@@ -59,7 +58,7 @@ type EnsureResourcesOpts struct {
 func ensureResources(opts EnsureResourcesOpts) error {
 	ds, err := getDaemonset(opts.clientset, opts.namespace, opts.pluginOpts)
 	if err != nil {
-		return errors.Wrap(err, "could not get restic daemonset")
+		return errors.Wrap(err, "could not get daemonset")
 	}
 
 	deployment, err := getDeployment(opts.clientset, opts.namespace, opts.pluginOpts)
@@ -96,21 +95,21 @@ func ensureResources(opts EnsureResourcesOpts) error {
 	}
 
 	if ds != nil {
-		// If restic is present, it must also mount the volume
+		// If node-agent is present, it must also mount the volume
 		err = ensureDaemonsetHasVolume(ds, volumeSpec, volumeMountSpec)
 		if err != nil {
-			return errors.Wrap(err, "failed to ensure restic daemonset has volume")
+			return errors.Wrap(err, "failed to ensure node-agent daemonset has volume")
 		}
 
 		err = ensureDaemonsetHasConfig(ds, opts.pluginOpts)
 		if err != nil {
-			return errors.Wrap(err, "failed to ensure restic daemonset has plugin configuration")
+			return errors.Wrap(err, "failed to ensure node-agent daemonset has plugin configuration")
 		}
 
-		// Update the restic daemonset
+		// Update the node-agent daemonset
 		_, err = opts.clientset.AppsV1().DaemonSets(opts.namespace).Update(context.TODO(), ds, metav1.UpdateOptions{})
 		if err != nil {
-			return errors.Wrap(err, "unable to update restic daemonset")
+			return errors.Wrap(err, "unable to update node-agent daemonset")
 		}
 	}
 
@@ -137,12 +136,7 @@ func ensureResources(opts EnsureResourcesOpts) error {
 
 // getDeployment returns the deployment for velero. It will return an error if it can not be found.
 func getDeployment(clientset kubernetes.Interface, namespace string, opts *localVolumeObjectStoreOpts) (*appsv1.Deployment, error) {
-	name := defaultVeleroDeploymentName
-	if opts.veleroDeploymentName != "" {
-		name = opts.veleroDeploymentName
-	}
-
-	existingDeployment, err := clientset.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	existingDeployment, err := clientset.AppsV1().Deployments(namespace).Get(context.TODO(), VeleroDeploymentName, metav1.GetOptions{})
 	if kuberneteserrors.IsNotFound(err) {
 		return nil, errors.Wrap(err, "velero deployment not found")
 	} else if err != nil {
@@ -185,25 +179,25 @@ func ensureDeploymentHasVolume(deployment *appsv1.Deployment, volumeSpec *corev1
 	return nil
 }
 
-// getDaemonset returns the daemonset for restic. It will return nil if it cannot be found,
-// as restic is an optional component
+// getDaemonset returns the daemonset for node agent. It will return nil if it cannot be found,
+// as node agent is an optional component.
 func getDaemonset(clientset kubernetes.Interface, namespace string, opts *localVolumeObjectStoreOpts) (*appsv1.DaemonSet, error) {
-	name := defaultResticDaemonsetName
-	if opts.resticDaemonsetName != "" {
-		name = opts.resticDaemonsetName
-	}
-
-	existingDaemonset, err := clientset.AppsV1().DaemonSets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	ds, err := clientset.AppsV1().DaemonSets(namespace).Get(context.TODO(), NodeAgentDaemonsetName, metav1.GetOptions{})
 	if kuberneteserrors.IsNotFound(err) {
-		return nil, nil
+		// try the old name for backwards compatibility
+		ds, err = clientset.AppsV1().DaemonSets(namespace).Get(context.TODO(), ResticDaemonsetName, metav1.GetOptions{})
+		if kuberneteserrors.IsNotFound(err) {
+			return nil, nil
+		} else if err != nil {
+			return nil, errors.Wrap(err, "failed to get restic daemonset")
+		}
 	} else if err != nil {
-		return nil, errors.Wrap(err, "failed to check for restic daemonset")
+		return nil, errors.Wrap(err, "failed to get node-agent daemonset")
 	}
-
-	return existingDaemonset, nil
+	return ds, nil
 }
 
-// ensureDaemonsetHasVolume checks the restic daemonset for a matching Volume name. If it does not find it,
+// ensureDaemonsetHasVolume checks the node-agent daemonset for a matching Volume name. If it does not find it,
 // it adds it to the podspec and updates the daemonset.
 func ensureDaemonsetHasVolume(ds *appsv1.DaemonSet, volumeSpec *corev1.Volume, volumeMountSpec *corev1.VolumeMount) error {
 
@@ -218,7 +212,7 @@ func ensureDaemonsetHasVolume(ds *appsv1.DaemonSet, volumeSpec *corev1.Volume, v
 	return nil
 }
 
-// ensureDaemonsetHasConfig will update the restic daemonset as-needed based on config options.
+// ensureDaemonsetHasConfig will update the node-agent daemonset as-needed based on config options.
 func ensureDaemonsetHasConfig(ds *appsv1.DaemonSet, opts *localVolumeObjectStoreOpts) error {
 	podSecurityCxt, err := getPodSecurityContext(opts)
 	if err != nil {
@@ -234,7 +228,7 @@ func ensureDaemonsetHasConfig(ds *appsv1.DaemonSet, opts *localVolumeObjectStore
 func removeUnusedVolumes(volumes []corev1.Volume, preserveVolumes map[string]bool) []corev1.Volume {
 	var newVolumes []corev1.Volume
 	for _, volume := range volumes {
-		// always preserve 'plugins', 'host-pods', 'scratch', and 'cloud-credentials' as these are used by velero and restic
+		// always preserve 'plugins', 'host-pods', 'scratch', and 'cloud-credentials' as these are used by velero and node agent
 		if volume.Name == "plugins" || volume.Name == "host-pods" || volume.Name == "scratch" || volume.Name == "cloud-credentials" {
 			newVolumes = append(newVolumes, volume)
 			continue
@@ -250,7 +244,7 @@ func removeUnusedVolumes(volumes []corev1.Volume, preserveVolumes map[string]boo
 func removeUnusedVolumeMounts(volumeMounts []corev1.VolumeMount, preserveVolumes map[string]bool) []corev1.VolumeMount {
 	var newVolumeMounts []corev1.VolumeMount
 	for _, volumeMount := range volumeMounts {
-		// always preserve 'plugins', 'host-pods', 'scratch', and 'cloud-credentials' as these are used by velero and restic
+		// always preserve 'plugins', 'host-pods', 'scratch', and 'cloud-credentials' as these are used by velero and node agent
 		if volumeMount.Name == "plugins" || volumeMount.Name == "host-pods" || volumeMount.Name == "scratch" || volumeMount.Name == "cloud-credentials" {
 			newVolumeMounts = append(newVolumeMounts, volumeMount)
 			continue

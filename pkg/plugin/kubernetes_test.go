@@ -577,7 +577,238 @@ func Test_ensureResources(t *testing.T) {
 			},
 		},
 		{
-			name: "updated configuration -- pod security context is set on the deployment and daemonset",
+			name: "updated configuration -- pod security context is set on the deployment and node-agent daemonset",
+			opts: EnsureResourcesOpts{
+				clientset: fake.NewSimpleClientset(
+					&appsv1.Deployment{
+						TypeMeta: metav1.TypeMeta{
+							APIVersion: "v1",
+							Kind:       "Deployment",
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "velero",
+							Namespace: "velero",
+						},
+						Spec: appsv1.DeploymentSpec{
+							Template: corev1.PodTemplateSpec{
+								Spec: corev1.PodSpec{
+									Containers: []corev1.Container{
+										{
+											Name: "velero",
+											Env:  getVeleroContainerEnv(),
+											VolumeMounts: []corev1.VolumeMount{
+												{
+													Name:      "plugins",
+													MountPath: "/plugins",
+												},
+												{
+													Name:      "my-bucket",
+													MountPath: "/var/velero-local-volume-provider/my-bucket",
+												},
+											},
+										},
+										{
+											Name:    "local-volume-provider",
+											Image:   "replicated/local-volume-provider:main",
+											Command: []string{"/local-volume-fileserver"},
+											Env:     getLVPContainerEnv(),
+											VolumeMounts: []corev1.VolumeMount{
+												{
+													Name:      "my-bucket",
+													MountPath: "/var/velero-local-volume-provider/my-bucket",
+												},
+											},
+										},
+									},
+									Volumes: []corev1.Volume{
+										{
+											Name: "plugins",
+											VolumeSource: corev1.VolumeSource{
+												EmptyDir: &corev1.EmptyDirVolumeSource{},
+											},
+										},
+										{
+											Name: "my-bucket",
+											VolumeSource: corev1.VolumeSource{
+												HostPath: &corev1.HostPathVolumeSource{
+													Path: "/backups",
+													Type: hostPathTypePtr(corev1.HostPathDirectory),
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					&appsv1.DaemonSet{
+						TypeMeta: metav1.TypeMeta{
+							APIVersion: "v1",
+							Kind:       "DaemonSet",
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "node-agent",
+							Namespace: "velero",
+						},
+						Spec: appsv1.DaemonSetSpec{
+							Template: corev1.PodTemplateSpec{
+								Spec: corev1.PodSpec{
+									Containers: []corev1.Container{
+										{
+											Name: "node-agent",
+											VolumeMounts: []corev1.VolumeMount{
+												{
+													Name:      "my-bucket",
+													MountPath: "/var/velero-local-volume-provider/my-bucket",
+												},
+											},
+										},
+									},
+									Volumes: []corev1.Volume{
+										{
+											Name: "my-bucket",
+											VolumeSource: corev1.VolumeSource{
+												HostPath: &corev1.HostPathVolumeSource{
+													Path: "/backups",
+													Type: hostPathTypePtr(corev1.HostPathDirectory),
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				),
+				namespace: "velero",
+				bucket:    "my-bucket",
+				prefix:    "",
+				path:      "/var/velero-local-volume-provider/my-bucket",
+				config: map[string]string{
+					"bucket": "my-bucket",
+					"prefix": "",
+					"path":   "/backups",
+				},
+				pluginOpts: &localVolumeObjectStoreOpts{
+					securityContextRunAsUser:  "1001",
+					securityContextRunAsGroup: "1001",
+					securityContextFSGroup:    "2001",
+				},
+				volumeType: Hostpath,
+				log:        logrus.NewEntry(logrus.New()),
+			},
+			wantDeployment: &appsv1.Deployment{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Deployment",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "velero",
+					Namespace: "velero",
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{
+								{
+									Name: "velero",
+									Env:  getVeleroContainerEnv(),
+									VolumeMounts: []corev1.VolumeMount{
+										{
+											Name:      "plugins",
+											MountPath: "/plugins",
+										},
+										{
+											Name:      "my-bucket",
+											MountPath: "/var/velero-local-volume-provider/my-bucket",
+										},
+									},
+								},
+								{
+									Name:    "local-volume-provider",
+									Image:   "replicated/local-volume-provider:main",
+									Command: []string{"/local-volume-fileserver"},
+									Env:     getLVPContainerEnv(),
+									VolumeMounts: []corev1.VolumeMount{
+										{
+											Name:      "my-bucket",
+											MountPath: "/var/velero-local-volume-provider/my-bucket",
+										},
+									},
+								},
+							},
+							Volumes: []corev1.Volume{
+								{
+									Name: "plugins",
+									VolumeSource: corev1.VolumeSource{
+										EmptyDir: &corev1.EmptyDirVolumeSource{},
+									},
+								},
+								{
+									Name: "my-bucket",
+									VolumeSource: corev1.VolumeSource{
+										HostPath: &corev1.HostPathVolumeSource{
+											Path: "/backups",
+											Type: hostPathTypePtr(corev1.HostPathDirectory),
+										},
+									},
+								},
+							},
+							SecurityContext: &corev1.PodSecurityContext{
+								RunAsUser:  pointer.Int64Ptr(1001),
+								RunAsGroup: pointer.Int64Ptr(1001),
+								FSGroup:    pointer.Int64Ptr(2001),
+							},
+						},
+					},
+				},
+			},
+			wantDaemonSet: &appsv1.DaemonSet{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "DaemonSet",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "node-agent",
+					Namespace: "velero",
+				},
+				Spec: appsv1.DaemonSetSpec{
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{
+								{
+									Name: "node-agent",
+									VolumeMounts: []corev1.VolumeMount{
+										{
+											Name:      "my-bucket",
+											MountPath: "/var/velero-local-volume-provider/my-bucket",
+										},
+									},
+								},
+							},
+							Volumes: []corev1.Volume{
+								{
+									Name: "my-bucket",
+									VolumeSource: corev1.VolumeSource{
+										HostPath: &corev1.HostPathVolumeSource{
+											Path: "/backups",
+											Type: hostPathTypePtr(corev1.HostPathDirectory),
+										},
+									},
+								},
+							},
+							SecurityContext: &corev1.PodSecurityContext{
+								RunAsUser:  pointer.Int64Ptr(1001),
+								RunAsGroup: pointer.Int64Ptr(1001),
+								FSGroup:    pointer.Int64Ptr(2001),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "updated configuration -- pod security context is set on the deployment and restic daemonset",
 			opts: EnsureResourcesOpts{
 				clientset: fake.NewSimpleClientset(
 					&appsv1.Deployment{
@@ -814,13 +1045,13 @@ func Test_ensureResources(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.wantDeployment != nil {
-				got, err := tt.opts.clientset.AppsV1().Deployments("velero").Get(context.TODO(), "velero", metav1.GetOptions{})
+				got, err := tt.opts.clientset.AppsV1().Deployments(tt.wantDeployment.Namespace).Get(context.TODO(), tt.wantDeployment.Name, metav1.GetOptions{})
 				require.NoError(t, err)
 				require.Equal(t, tt.wantDeployment.Spec.Template.Spec, got.Spec.Template.Spec)
 			}
 
 			if tt.wantDaemonSet != nil {
-				got, err := tt.opts.clientset.AppsV1().DaemonSets("velero").Get(context.TODO(), "restic", metav1.GetOptions{})
+				got, err := tt.opts.clientset.AppsV1().DaemonSets(tt.wantDaemonSet.Namespace).Get(context.TODO(), tt.wantDaemonSet.Name, metav1.GetOptions{})
 				require.NoError(t, err)
 				require.Equal(t, tt.wantDaemonSet.Spec.Template.Spec, got.Spec.Template.Spec)
 			}
