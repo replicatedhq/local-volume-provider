@@ -210,7 +210,8 @@ velero backup-location create default --default --bucket my-hostpath-snaps --pro
     1. Verify the path on the host is writable by the Velero pod. The Velero pod runs as user `nobody`.
 1. Backups are partially failing and you're using Restic.
     1. Make sure you have defined `resticRepoPrefix` in you BackupStorageLocation Config. It should point to the `restic` directory mountpoint in the Velero container
-    1. Delete your Restic Repo CR `k -n velero delete resticrepositories.velero.io default-default-<ID>` to have this regenerated.
+    1. **Velero 1.10+**: Delete your Backup Repo CR `kubectl -n velero delete backuprepositories.velero.io default-default-<ID>` to have this regenerated.
+    1. **Velero 1.6-1.9**: Delete your Restic Repo CR `kubectl -n velero delete resticrepositories.velero.io default-default-<ID>` to have this regenerated.
 
 # Future
 - [ ] TESTING!
