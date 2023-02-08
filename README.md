@@ -13,6 +13,15 @@ Volume snapshots performed in this configuration without shared storage can resu
 1. When BackupStorageLocations are removed, they are NOT cleaned up from the Velero and Node Agent pods.
 1. This plugin relies on a sidecar container at runtime to provide signed-url access to storage data.
 
+## Compatibility
+
+Below is a listing of plugin versions and respective Velero versions that are compatible.
+
+| Plugin Version | Velero Version          |
+|----------------|-------------------------|
+| v0.5.x         | v1.10.x                 |
+| v0.4.x         | v1.6.x - v1.9.x         |
+
 ## Deploying the plugin
 
 To deploy the plugin image to a Velero server:
