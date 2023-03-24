@@ -77,6 +77,6 @@ scan:
 	trivy fs \
 		--security-checks vuln \
 		--exit-code=1 \
-		--severity="HIGH,CRITICAL" \
+		--severity="CRITICAL,HIGH,MEDIUM" \
 		--ignore-unfixed \
 		./
