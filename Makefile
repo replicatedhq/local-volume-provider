@@ -75,7 +75,7 @@ clean:
 .PHONY: scan
 scan:
 	trivy fs \
-		--security-checks vuln \
+		--scanners vuln \
 		--exit-code=1 \
 		--severity="CRITICAL,HIGH,MEDIUM" \
 		--ignore-unfixed \
