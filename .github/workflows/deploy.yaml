@@ -15,16 +15,9 @@ jobs:
       id: get_tag
       shell: bash
       run: echo ::set-output name=GIT_TAG::${GITHUB_REF/refs\/tags\//}
-    - uses: azure/docker-login@v1
-      env:
-          DOCKER_CONFIG: ./.docker
+    - uses: ./.github/actions/build-push-lvp-image
       with:
-        username: ${{ secrets.DOCKERHUB_USER }}
-        password: ${{ secrets.DOCKERHUB_PASSWORD }}
-    - name: Build
-      env:
-        VERSION: ${{ steps.get_tag.outputs.GIT_TAG }}
-        DOCKER_CONFIG: ./.docker
-      run: |
-        make container 
-        make push
+        image-name: index.docker.io/replicated/local-volume-provider:${{ steps.get_tag.outputs.GIT_TAG }}
+        git-tag: ${{ steps.get_tag.outputs.GIT_TAG }}
+        registry-username: ${{ secrets.DOCKERHUB_USER }}
+        registry-password: ${{ secrets.DOCKERHUB_PASSWORD }}

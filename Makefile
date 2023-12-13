@@ -2,9 +2,9 @@
 REGISTRY ?= replicated
 
 PLUGIN_NAME ?= local-volume-provider
-PLUGIN_IMAGE    ?= $(REGISTRY)/$(PLUGIN_NAME)
+PLUGIN_IMAGE ?= $(REGISTRY)/$(PLUGIN_NAME)
 
-VERSION  ?= main 
+VERSION ?= main 
 CURRENT_USER := $(shell id -u -n)
 
 GOOS   ?= $(shell go env GOOS)
@@ -32,7 +32,7 @@ ci: verify-modules local test
 
 .PHONY: container
 container:
-	docker build --pull -t $(PLUGIN_IMAGE):$(VERSION) -f deploy/local-volume-provider/Dockerfile --build-arg VERSION=$(VERSION) .
+	docker build --pull -t $(PLUGIN_IMAGE):$(VERSION) -f deploy/Dockerfile --build-arg VERSION=$(VERSION) .
 
 # push pushes the Docker image to its registry.
 .PHONY: push
@@ -45,7 +45,7 @@ endif
 
 .PHONY ttl.sh:
 ttl.sh:
-	docker build -t $(CURRENT_USER)/$(PLUGIN_NAME):12h -f deploy/local-volume-provider/Dockerfile .
+	docker build -t $(CURRENT_USER)/$(PLUGIN_NAME):12h -f deploy/Dockerfile .
 	docker tag $(CURRENT_USER)/$(PLUGIN_NAME):12h ttl.sh/$(CURRENT_USER)/$(PLUGIN_NAME):12h
 	@docker push ttl.sh/$(CURRENT_USER)/$(PLUGIN_NAME):12h
 

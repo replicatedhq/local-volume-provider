@@ -1,0 +1,19 @@
+contents:
+  repositories:
+    - https://packages.wolfi.dev/os
+    - ./packages/
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    - ./melange.rsa.pub
+  packages:
+    - local-volume-provider-head  # This is expected to be built locally by `melange`.
+    - bash
+    - busybox
+    - curl
+    - git
+    - wolfi-baselayout
+
+environment:
+  VERSION: ${GIT_TAG}
+
+cmd: /bin/bash -c "cp /plugins/* /target/."
