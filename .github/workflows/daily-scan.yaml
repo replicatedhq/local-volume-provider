@@ -36,14 +36,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Build local-volume-provider image from Dockerfile
-        run: |
-          docker build --pull -t replicated/local-volume-provider:${{ github.sha }} -f deploy/local-volume-provider/Dockerfile --build-arg VERSION=${{ github.sha }} .
-          
+      - uses: ./.github/actions/build-push-lvp-image
+        with:
+          image-name: ttl.sh/automated-${{ github.run_id }}/local-volume-provider:${{ github.sha }}
+          git-tag: ${{ github.sha }}
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'replicated/local-volume-provider:${{ github.sha }}'
+          image-ref: 'ttl.sh/automated-${{ github.run_id }}/local-volume-provider:${{ github.sha }}'
           format: 'sarif'          
           output: 'trivy-results.sarif'
           ignore-unfixed: true

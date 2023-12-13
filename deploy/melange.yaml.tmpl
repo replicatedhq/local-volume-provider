@@ -1,0 +1,37 @@
+package:
+  name: local-volume-provider-head
+  version: ${GIT_TAG}
+  epoch: 0
+  description: local-volume-provider package
+  copyright:
+    - license: Apache-2.0
+
+environment:
+  contents:
+    repositories:
+      - https://packages.wolfi.dev/os
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    packages:
+      - ca-certificates-bundle
+      - busybox
+      - git
+      - go
+  environment:
+    GOMODCACHE: '/var/cache/melange'
+
+pipeline:
+  - runs: |
+      set -x
+      export DESTDIR="${{targets.destdir}}"
+      mkdir -p "${DESTDIR}/plugins"
+
+      export VERSION=${{package.version}}
+
+      CGO_ENABLED=0 go build \
+        -ldflags=" -X github.com/replicatedhq/local-volume-provider/pkg/version.version=$VERSION " \
+        -o "${DESTDIR}/plugins/local-volume-provider" ./cmd/local-volume-provider
+
+      CGO_ENABLED=0 go build \
+        -ldflags=" -X github.com/replicatedhq/local-volume-provider/pkg/version.version=$VERSION " \
+        -o "${DESTDIR}/local-volume-fileserver" ./cmd/local-volume-fileserver
