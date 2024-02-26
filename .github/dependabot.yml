@@ -1,0 +1,29 @@
+---
+version: 2
+updates:
+  ## Go mod
+  - package-ecosystem: "gomod"
+    directory: "/"
+    open-pull-requests-limit: 2
+    schedule:
+      interval: "daily"
+    labels:
+      - "dependabot"
+      - "go"
+      - "type::security"
+    groups:
+      security:
+        update-types:
+          - "patch"
+          - "minor"
+
+  ## GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    open-pull-requests-limit: 2
+    schedule:
+      interval: "daily"
+    labels:
+      - "dependabot"
+      - "github-actions"
+      - "type::security"
