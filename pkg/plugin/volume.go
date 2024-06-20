@@ -154,7 +154,7 @@ func ensurePVC(config map[string]string, log *logrus.Entry) error {
 			AccessModes: []corev1.PersistentVolumeAccessMode{
 				corev1.ReadWriteMany,
 			},
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceName(corev1.ResourceStorage): resource.MustParse(config["storageSize"]),
 				},
