@@ -67,7 +67,7 @@ func isWriteable(log *logrus.Entry, info fs.FileInfo) bool {
 	log.Debugf("Detected Gid: %d", os.Getegid())
 
 	// Writable by group
-	if info.Mode().Perm()&(1<<4) > 0 && os.Getegid() == int(stat.Gid) {
+	if info.Mode().Perm()&(1<<4) > 0 && os.Getegid() == int(stat.Gid) || os.Getegid() == 0 {
 		return true
 	}
 
