@@ -14,7 +14,7 @@ jobs:
       uses: battila7/get-version-action@v2
     - uses: ./.github/actions/build-push-lvp-image
       with:
-        image-name: index.docker.io/replicated/local-volume-provider:$${{ steps.get_version.outputs.version-without-v }}
-        git-tag: $${{ steps.get_version.outputs.version-without-v }}
+        image-name: index.docker.io/replicated/local-volume-provider:${{ steps.get_version.outputs.version-without-v }}
+        git-tag: ${{ steps.get_version.outputs.version-without-v }}
         registry-username: ${{ secrets.DOCKERHUB_USER }}
         registry-password: ${{ secrets.DOCKERHUB_PASSWORD }}
