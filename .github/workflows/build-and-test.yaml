@@ -1,0 +1,48 @@
+name: build-and-test # this name is used by .github/workflows/automated-prs-manager.yaml
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build the Docker image
+      run: docker build . -f deploy/Dockerfile --tag replicated/local-volume-provider:$(date +%s)
+
+  unit-tests:
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: 1.22
+    - name: Run unit tests
+      run: |
+        make test
+
+  validate-pr-tests:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+      - unit-tests
+    steps:
+      - run: echo "All PR tests passed"
+
+  validate-success:
+    name: Validate success # this name is used by .github/workflows/automated-prs-manager.yaml
+    runs-on: ubuntu-latest
+    needs:
+      - validate-pr-tests
+    if: always()
+    steps:
+      - name: fail if validate-pr-tests job was not successful
+        if: needs.validate-pr-tests.result != 'success'
+        run: exit 1
+      - name: succeed if validate-pr-tests job succeeded
+        if: needs.validate-pr-tests.result == 'success'
+        run: echo "Validation succeeded"
