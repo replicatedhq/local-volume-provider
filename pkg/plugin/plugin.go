@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -249,14 +250,25 @@ func (o *LocalVolumeObjectStore) CreateSignedURL(bucket, key string, ttl time.Du
 	})
 	log.Debug("LocalVolumeObjectStore.CreateSignedURL called")
 
-	namespace := os.Getenv("VELERO_NAMESPACE")
-
+	downloadHostname := os.Getenv("POD_IP")
+	if o.opts.externalDownloadHostname != "" {
+		downloadHostname = o.opts.externalDownloadHostname
+	}
+	downloadScheme := "http"
+	if o.opts.externalDownloadScheme != "" {
+		downloadScheme = o.opts.externalDownloadScheme
+	}
+	downloadPort := 3000
+	if o.opts.externalDownloadPort != "" {
+		downloadPort, _ = strconv.Atoi(o.opts.externalDownloadPort)
+	}
 	signedUrl := url.URL{
-		Scheme: "http",
-		Host:   fmt.Sprintf("%s:%d", os.Getenv("POD_IP"), 3000),
+		Scheme: downloadScheme,
+		Host:   fmt.Sprintf("%s:%d", downloadHostname, downloadPort),
 		Path:   fmt.Sprintf("/%s/%s", bucket, key),
 	}
 
+	namespace := os.Getenv("VELERO_NAMESPACE")
 	err := SignURL(&signedUrl, namespace, ttl)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to create signed url")
@@ -292,6 +304,9 @@ func (o *LocalVolumeObjectStore) getLocalVolumeStoreOpts() error {
 			securityContextRunAsGroup: pluginConfigMap.Data["securityContextRunAsGroup"],
 			securityContextFSGroup:    pluginConfigMap.Data["securityContextFsGroup"],
 			preserveVolumes:           preserveVolumes,
+			externalDownloadHostname:  pluginConfigMap.Data["externalDownloadHostname"],
+			externalDownloadScheme:    pluginConfigMap.Data["externalDownloadScheme"],
+			externalDownloadPort:      pluginConfigMap.Data["externalDownloadPort"],
 		}
 	}
 	return nil
