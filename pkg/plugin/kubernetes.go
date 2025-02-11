@@ -25,6 +25,9 @@ type localVolumeObjectStoreOpts struct {
 	securityContextRunAsGroup string
 	securityContextFSGroup    string
 	preserveVolumes           map[string]bool
+	externalDownloadHostname  string
+	externalDownloadPort      string
+	externalDownloadScheme    string
 }
 
 const (
@@ -163,7 +166,7 @@ func ensureDeploymentHasVolume(deployment *appsv1.Deployment, volumeSpec *corev1
 		}
 		veleroContainer.VolumeMounts = append(veleroContainer.VolumeMounts, *volumeMountSpec)
 
-		// Add the POD_IP for servering the signed URLs
+		// Add the POD_IP for serving the signed URLs
 		if !containerHasEnvVar(veleroContainer, "POD_IP") {
 			veleroContainer.Env = append(veleroContainer.Env, corev1.EnvVar{
 				Name: "POD_IP",
