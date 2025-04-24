@@ -55,6 +55,7 @@ metadata:
   labels:
     velero.io/plugin-config: ""
     replicated.com/nfs: ObjectStore
+    replicated.com/pvc: ObjectStore
     replicated.com/hostpath: ObjectStore
 data:
   # Useful for local development
