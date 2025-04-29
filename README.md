@@ -65,6 +65,12 @@ data:
   securityContextFsGroup: "1001"
   # If provided, will clean up all other volumes on the Velero and Node Agent pods
   preserveVolumes: "my-bucket,my-other-bucket"
+  # use this if you deployed an ingress for the fileserver running on 3000 to access logs from outside the cluster network
+  # e.g. via ur velero cli. You will need to deploy the service/ingress yourself. See examples/filserverService.yaml
+  externalDownloadHostname: "www.velero-logs.domain.com"
+  # using https currently seems not to be supported by the velero client
+  externalDownloadScheme: "http"
+  externalDownloadPort: 80
 ```
 
 ## Removing the plugin
