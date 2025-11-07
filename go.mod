@@ -8,7 +8,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
-	github.com/vmware-tanzu/velero v1.17.0
+	github.com/vmware-tanzu/velero v1.17.1
 	k8s.io/api v0.34.1
 	k8s.io/apimachinery v0.34.1
 	k8s.io/client-go v0.34.1
