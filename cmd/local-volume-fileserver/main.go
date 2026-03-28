@@ -19,7 +19,9 @@ func main() {
 		os.Exit(0)
 	}
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		Network: fiber.NetworkTCP,
+	})
 
 	mountPoint := os.Getenv("MOUNT_POINT")
 	if mountPoint == "" {
