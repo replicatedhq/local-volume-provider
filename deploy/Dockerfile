@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS build-plugin
+FROM --platform=$BUILDPLATFORM golang:1.26-trixie AS build-plugin
 ENV GOPROXY=https://proxy.golang.org
 ENV PROJECTPATH=/go/src/github.com/replicatedhq/local-volume-provider/local-volume-fileserver
 ARG TARGETARCH
@@ -12,7 +12,7 @@ COPY pkg ./pkg
 ARG VERSION=main
 RUN CGO_ENABLED=0 GOARCH=${TARGETARCH} go build -ldflags=" -X github.com/replicatedhq/local-volume-provider/pkg/version.version=$VERSION " -o /go/bin/local-volume-provider ./cmd/local-volume-provider
 
-FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS build-fileserver
+FROM --platform=$BUILDPLATFORM golang:1.26-trixie AS build-fileserver
 ENV GOPROXY=https://proxy.golang.org
 ENV PROJECTPATH=/go/src/github.com/replicatedhq/local-volume-provider/local-volume-fileserver
 WORKDIR $PROJECTPATH
@@ -24,7 +24,7 @@ COPY pkg ./pkg
 ARG VERSION=main
 RUN CGO_ENABLED=0 GOARCH=${TARGETARCH} go build -ldflags=" -X github.com/replicatedhq/local-volume-provider/pkg/version.version=$VERSION " -o /go/bin/local-volume-fileserver ./cmd/local-volume-fileserver
 
-FROM debian:bullseye-slim
+FROM debian:trixie-slim
 RUN mkdir /plugins
 COPY --from=build-plugin /go/bin/local-volume-provider /plugins/
 COPY --from=build-fileserver /go/bin/local-volume-fileserver .
