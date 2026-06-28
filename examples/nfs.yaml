@@ -1,3 +1,6 @@
+# Compatible with Restic file-system backups on Velero 1.16 and earlier.
+# NOT compatible with Kopia file-system backups on Velero 1.17+.
+# For Velero 1.17+ local file-system backups, use an S3-compatible object store such as Minio instead.
 apiVersion: velero.io/v1
 kind: BackupStorageLocation
 metadata:
