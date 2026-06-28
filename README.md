@@ -1,7 +1,7 @@
 # local-volume-provider
 
 `local-volume-provider` is a Velero plugin to enable storage directly to native Kubernetes' volume types instead of using Object or Blob storage APIs. 
-It also supports volume snapshots with Restic. It is designed to service small and air-gapped clusters that may not have access directly to Object Storage APIs like S3.
+It supports volume snapshots with Restic on Velero 1.16 and earlier. **It is NOT compatible with Kopia file-system backups on Velero 1.17+.** For Velero 1.17+ local file-system backups, use an S3-compatible object store such as Minio instead of this plugin. It is designed to service small and air-gapped clusters that may not have access directly to Object Storage APIs like S3.
 
 The plugin leverages the existing Velero service account credentials to mount volumes directly to the velero/node-agent pods. 
 This plugin is also heavily based off of [Velero's example plugin](https://github.com/vmware-tanzu/velero-plugin-example).
@@ -12,6 +12,7 @@ Volume snapshots performed in this configuration without shared storage can resu
 1. Customized deployments of Velero (RBAC, container names), may not be supported.
 1. When BackupStorageLocations are removed, they are NOT cleaned up from the Velero and Node Agent pods.
 1. This plugin relies on a sidecar container at runtime to provide signed-url access to storage data.
+1. **Velero 1.17+ uses Kopia as the default uploader for file-system backups. This plugin is an object-store plugin and is not invoked by Velero for Kopia repository operations, so it is not compatible with Kopia file-system backups. For local file-system backups on Velero 1.17+, use an S3-compatible object store such as Minio instead.**
 
 ## Compatibility
 
@@ -19,14 +20,16 @@ Below is a listing of plugin versions and respective Velero versions that are co
 
 | Plugin Version | Velero Version          |
 |----------------|-------------------------|
-| v0.5.x         | v1.10.x                 |
+| v0.5.x         | v1.10.x - v1.16.x       |
 | v0.4.x         | v1.6.x - v1.9.x         |
+
+> **Note:** Velero 1.17+ switched the default file-system backup uploader from Restic to Kopia. This plugin only works with the Restic uploader. It is not compatible with Kopia file-system backups. For Velero 1.17+ local file-system backups, use an S3-compatible object store such as Minio instead of this plugin.
 
 ## Deploying the plugin
 
 To deploy the plugin image to a Velero server:
 
-1. Make sure Velero is installed, optionally with Node Agent/Restic if Volume Snapshots are needed.
+1. Make sure Velero is installed, optionally with Node Agent/Restic if Volume Snapshots are needed. This plugin only supports the Restic uploader and is not compatible with Kopia (the default uploader in Velero 1.17+).
 1. (For NFS or HostPath volumes) Prepare the volume target.
     1. The source directory **must already exist** prior to creating the BackupStorageLocation
     1. The directory must have write permissions that are either writable by the Velero container by default, which runs as non-root, or to the same Uid/Gid as the plugin configuration. 
@@ -154,6 +157,8 @@ This builds an image tagged as `ttl.sh/<unix user>/local-volume-provider:12h`.
 Make sure the plugin will be configured to use the correct security context and development images by applying the optional [ConfigMap](https://raw.githubusercontent.com/replicatedhq/local-volume-provider/main/examples/pluginConfigMap.yaml) (edit this configmap first with your username):
 
 ### Velero Install Option 1
+
+> **Note:** The commands below use `--uploader-type=restic` because this plugin only supports the Restic file-system backup uploader. It is not compatible with the Kopia uploader used by default in Velero 1.17+. For Velero 1.17+ local file-system backups, use an S3-compatible object store such as Minio instead of this plugin.
 
 1. Install Velero without the plugin (useful for testing the `velero` install/remove plugin commands):
 
