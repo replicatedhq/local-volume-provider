@@ -3,7 +3,7 @@ module github.com/replicatedhq/local-volume-provider
 go 1.26.2
 
 require (
-	github.com/gofiber/fiber/v2 v2.52.13
+	github.com/gofiber/fiber/v2 v2.52.14
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/pflag v1.0.10
