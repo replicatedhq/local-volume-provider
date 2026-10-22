@@ -1,6 +1,6 @@
 module github.com/replicatedhq/local-volume-provider
 
-go 1.26.2
+go 1.26.10
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.15
